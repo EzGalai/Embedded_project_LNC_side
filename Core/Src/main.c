@@ -23,6 +23,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "transport_uart.h"
+#include "protocol.h"
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -92,11 +94,11 @@ const osThreadAttr_t vMonitorTask_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityAboveNormal1,
 };
-/* Definitions for phase2Echo */
-osThreadId_t phase2EchoHandle;
-const osThreadAttr_t phase2Echo_attributes = {
-  .name = "phase2Echo",
-  .stack_size = 128 * 4,
+/* Definitions for phase3Echo */
+osThreadId_t phase3EchoHandle;
+const osThreadAttr_t phase3Echo_attributes = {
+  .name = "phase3Echo",
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityHigh1,
 };
 /* Definitions for xEventQueue */
@@ -144,7 +146,7 @@ void CommRxThread(void *argument);
 void eventThread(void *argument);
 void commTxThread(void *argument);
 void monitorThread(void *argument);
-void Phase2EchoTask(void *argument);
+void Phase3EchoTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -249,8 +251,8 @@ int main(void)
   /* creation of vMonitorTask */
   vMonitorTaskHandle = osThreadNew(monitorThread, NULL, &vMonitorTask_attributes);
 
-  /* creation of phase2Echo */
-  phase2EchoHandle = osThreadNew(Phase2EchoTask, NULL, &phase2Echo_attributes);
+  /* creation of phase3Echo */
+  phase3EchoHandle = osThreadNew(Phase3EchoTask, NULL, &phase3Echo_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -521,28 +523,52 @@ void monitorThread(void *argument)
   /* USER CODE END monitorThread */
 }
 
-/* USER CODE BEGIN Header_Phase2EchoTask */
+/* USER CODE BEGIN Header_Phase3EchoTask */
 /**
-* @brief Function implementing the phase2Echo thread.
+* @brief Function implementing the phase3Echo thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_Phase2EchoTask */
-void Phase2EchoTask(void *argument)
+/* USER CODE END Header_Phase3EchoTask */
+void Phase3EchoTask(void *argument)
 {
-  /* USER CODE BEGIN Phase2EchoTask */
-	Uart_Init();
-	  uint8_t buf[64];
+  /* USER CODE BEGIN Phase3EchoTask */
+  /* Infinite loop */
+	 Uart_Init();
+	  uint8_t rxBuf[64];
+	  uint16_t rxLen = 0;
 
 	  for (;;)
 	  {
-	    uint16_t n = Uart_Recv(buf, sizeof(buf));
-	    if (n > 0) {
-	      Uart_Send(buf, n);
+	    uint16_t n = Uart_Recv(rxBuf + rxLen, (uint16_t)(sizeof(rxBuf) - rxLen));
+	    rxLen = (uint16_t)(rxLen + n);
+
+	    if (rxLen > 0) {
+	      uint8_t payload[64];
+	      uint16_t payloadLen;
+	      uint16_t consumed;
+	      ProtoResult_t r = Frame_Decode(rxBuf, rxLen, payload, sizeof(payload), &payloadLen, &consumed);
+
+	      if (r == PROTO_OK) {
+	        uint8_t framed[150];
+	        uint16_t framedLen;
+	        Frame_Encode(payload, payloadLen, framed, sizeof(framed), &framedLen);
+	        Uart_Send(framed, framedLen);
+
+	        memmove(rxBuf, rxBuf + consumed, (size_t)(rxLen - consumed)); /* slide any leftover bytes to the front */
+	        rxLen = (uint16_t)(rxLen - consumed);
+	      } else if (r == PROTO_ERR_MALFORMED) {
+	        memmove(rxBuf, rxBuf + consumed, (size_t)(rxLen - consumed)); /* discard the bad frame, resync */
+	        rxLen = (uint16_t)(rxLen - consumed);
+	      } else if (r == PROTO_ERR_BUFFER_TOO_SMALL) {
+	        rxLen = 0; /* shouldn't happen given our buffer sizes; safe fallback if it ever does */
+	      }
+	      /* PROTO_ERR_INCOMPLETE: leave rxBuf as-is, wait for more bytes next loop */
 	    }
+
 	    osDelay(10);
 	  }
-  /* USER CODE END Phase2EchoTask */
+  /* USER CODE END Phase3EchoTask */
 }
 
 /**

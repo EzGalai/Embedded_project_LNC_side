@@ -29,4 +29,11 @@
 		<nature>org.eclipse.cdt.managedbuilder.core.managedBuildNature</nature>
 		<nature>org.eclipse.cdt.managedbuilder.core.ScannerConfigNature</nature>
 	</natures>
+	<linkedResources>
+		<link>
+			<name>common</name>
+			<type>2</type>
+			<location>/home/ezgal/Documents/Embedded_and_RTOS/Embedded/finalProject/common</location>
+		</link>
+	</linkedResources>
 </projectDescription>
