@@ -45,52 +45,52 @@
 /* Private variables ---------------------------------------------------------*/
 UART_HandleTypeDef huart2;
 
-/* Definitions for vWatchdogTask */
-osThreadId_t vWatchdogTaskHandle;
-const osThreadAttr_t vWatchdogTask_attributes = {
-  .name = "vWatchdogTask",
+/* Definitions for WatchdogTask */
+osThreadId_t WatchdogTaskHandle;
+const osThreadAttr_t WatchdogTask_attributes = {
+  .name = "WatchdogTask",
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityHigh7,
 };
-/* Definitions for vInitTask */
-osThreadId_t vInitTaskHandle;
-const osThreadAttr_t vInitTask_attributes = {
-  .name = "vInitTask",
+/* Definitions for InitTask */
+osThreadId_t InitTaskHandle;
+const osThreadAttr_t InitTask_attributes = {
+  .name = "InitTask",
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityHigh4,
 };
-/* Definitions for vObjectDetectio */
-osThreadId_t vObjectDetectioHandle;
-const osThreadAttr_t vObjectDetectio_attributes = {
-  .name = "vObjectDetectio",
+/* Definitions for ObjectDetection */
+osThreadId_t ObjectDetectionHandle;
+const osThreadAttr_t ObjectDetection_attributes = {
+  .name = "ObjectDetection",
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityHigh2,
 };
-/* Definitions for vCommRxTask */
-osThreadId_t vCommRxTaskHandle;
-const osThreadAttr_t vCommRxTask_attributes = {
-  .name = "vCommRxTask",
+/* Definitions for CommRxTask */
+osThreadId_t CommRxTaskHandle;
+const osThreadAttr_t CommRxTask_attributes = {
+  .name = "CommRxTask",
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityHigh1,
 };
-/* Definitions for vEventTask */
-osThreadId_t vEventTaskHandle;
-const osThreadAttr_t vEventTask_attributes = {
-  .name = "vEventTask",
+/* Definitions for EventTask */
+osThreadId_t EventTaskHandle;
+const osThreadAttr_t EventTask_attributes = {
+  .name = "EventTask",
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityAboveNormal5,
 };
-/* Definitions for vCommTxTask */
-osThreadId_t vCommTxTaskHandle;
-const osThreadAttr_t vCommTxTask_attributes = {
-  .name = "vCommTxTask",
+/* Definitions for CommTxTask */
+osThreadId_t CommTxTaskHandle;
+const osThreadAttr_t CommTxTask_attributes = {
+  .name = "CommTxTask",
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityAboveNormal,
 };
-/* Definitions for vMonitorTask */
-osThreadId_t vMonitorTaskHandle;
-const osThreadAttr_t vMonitorTask_attributes = {
-  .name = "vMonitorTask",
+/* Definitions for MonitorTask */
+osThreadId_t MonitorTaskHandle;
+const osThreadAttr_t MonitorTask_attributes = {
+  .name = "MonitorTask",
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityAboveNormal1,
 };
@@ -100,6 +100,13 @@ const osThreadAttr_t phase4Echo_attributes = {
   .name = "phase4Echo",
   .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityHigh1,
+};
+/* Definitions for KeepAliveTask */
+osThreadId_t KeepAliveTaskHandle;
+const osThreadAttr_t KeepAliveTask_attributes = {
+  .name = "KeepAliveTask",
+  .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityAboveNormal,
 };
 /* Definitions for xEventQueue */
 osMessageQueueId_t xEventQueueHandle;
@@ -139,14 +146,15 @@ const osMutexAttr_t xLogMutex_attributes = {
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
-void watchdogThread(void *argument);
-void initThread(void *argument);
-void objectDetectionThread(void *argument);
-void CommRxThread(void *argument);
-void eventThread(void *argument);
-void commTxThread(void *argument);
-void monitorThread(void *argument);
+void vWatchdogTask(void *argument);
+void vInitTask(void *argument);
+void vObjectDetectionTask(void *argument);
+void vCommRxTask(void *argument);
+void vEventTask(void *argument);
+void vCommTxTask(void *argument);
+void vMonitorTask(void *argument);
 void Phase4EchoTask(void *argument);
+void vKeepAliveTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -230,29 +238,32 @@ int main(void)
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* creation of vWatchdogTask */
-  vWatchdogTaskHandle = osThreadNew(watchdogThread, NULL, &vWatchdogTask_attributes);
+  /* creation of WatchdogTask */
+  WatchdogTaskHandle = osThreadNew(vWatchdogTask, NULL, &WatchdogTask_attributes);
 
-  /* creation of vInitTask */
-  vInitTaskHandle = osThreadNew(initThread, NULL, &vInitTask_attributes);
+  /* creation of InitTask */
+  InitTaskHandle = osThreadNew(vInitTask, NULL, &InitTask_attributes);
 
-  /* creation of vObjectDetectio */
-  vObjectDetectioHandle = osThreadNew(objectDetectionThread, NULL, &vObjectDetectio_attributes);
+  /* creation of ObjectDetection */
+  ObjectDetectionHandle = osThreadNew(vObjectDetectionTask, NULL, &ObjectDetection_attributes);
 
-  /* creation of vCommRxTask */
-  vCommRxTaskHandle = osThreadNew(CommRxThread, NULL, &vCommRxTask_attributes);
+  /* creation of CommRxTask */
+  CommRxTaskHandle = osThreadNew(vCommRxTask, NULL, &CommRxTask_attributes);
 
-  /* creation of vEventTask */
-  vEventTaskHandle = osThreadNew(eventThread, NULL, &vEventTask_attributes);
+  /* creation of EventTask */
+  EventTaskHandle = osThreadNew(vEventTask, NULL, &EventTask_attributes);
 
-  /* creation of vCommTxTask */
-  vCommTxTaskHandle = osThreadNew(commTxThread, NULL, &vCommTxTask_attributes);
+  /* creation of CommTxTask */
+  CommTxTaskHandle = osThreadNew(vCommTxTask, NULL, &CommTxTask_attributes);
 
-  /* creation of vMonitorTask */
-  vMonitorTaskHandle = osThreadNew(monitorThread, NULL, &vMonitorTask_attributes);
+  /* creation of MonitorTask */
+  MonitorTaskHandle = osThreadNew(vMonitorTask, NULL, &MonitorTask_attributes);
 
   /* creation of phase4Echo */
   phase4EchoHandle = osThreadNew(Phase4EchoTask, NULL, &phase4Echo_attributes);
+
+  /* creation of KeepAliveTask */
+  KeepAliveTaskHandle = osThreadNew(vKeepAliveTask, NULL, &KeepAliveTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -397,14 +408,14 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE END 4 */
 
-/* USER CODE BEGIN Header_watchdogThread */
+/* USER CODE BEGIN Header_vWatchdogTask */
 /**
-  * @brief  Function implementing the vWatchdogTask thread.
+  * @brief  Function implementing the WatchdogTask thread.
   * @param  argument: Not used
   * @retval None
   */
-/* USER CODE END Header_watchdogThread */
-void watchdogThread(void *argument)
+/* USER CODE END Header_vWatchdogTask */
+void vWatchdogTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
   /* Infinite loop */
@@ -415,112 +426,112 @@ void watchdogThread(void *argument)
   /* USER CODE END 5 */
 }
 
-/* USER CODE BEGIN Header_initThread */
+/* USER CODE BEGIN Header_vInitTask */
 /**
-* @brief Function implementing the vInitTask thread.
+* @brief Function implementing the InitTask thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_initThread */
-void initThread(void *argument)
+/* USER CODE END Header_vInitTask */
+void vInitTask(void *argument)
 {
-  /* USER CODE BEGIN initThread */
+  /* USER CODE BEGIN vInitTask */
   /* Infinite loop */
   for(;;)
   {
     osDelay(1);
   }
-  /* USER CODE END initThread */
+  /* USER CODE END vInitTask */
 }
 
-/* USER CODE BEGIN Header_objectDetectionThread */
+/* USER CODE BEGIN Header_vObjectDetectionTask */
 /**
-* @brief Function implementing the vObjectDetectio thread.
+* @brief Function implementing the ObjectDetection thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_objectDetectionThread */
-void objectDetectionThread(void *argument)
+/* USER CODE END Header_vObjectDetectionTask */
+void vObjectDetectionTask(void *argument)
 {
-  /* USER CODE BEGIN objectDetectionThread */
+  /* USER CODE BEGIN vObjectDetectionTask */
   /* Infinite loop */
   for(;;)
   {
     osDelay(1);
   }
-  /* USER CODE END objectDetectionThread */
+  /* USER CODE END vObjectDetectionTask */
 }
 
-/* USER CODE BEGIN Header_CommRxThread */
+/* USER CODE BEGIN Header_vCommRxTask */
 /**
-* @brief Function implementing the vCommRxTask thread.
+* @brief Function implementing the CommRxTask thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_CommRxThread */
-void CommRxThread(void *argument)
+/* USER CODE END Header_vCommRxTask */
+void vCommRxTask(void *argument)
 {
-  /* USER CODE BEGIN CommRxThread */
+  /* USER CODE BEGIN vCommRxTask */
   /* Infinite loop */
   for(;;)
   {
     osDelay(1);
   }
-  /* USER CODE END CommRxThread */
+  /* USER CODE END vCommRxTask */
 }
 
-/* USER CODE BEGIN Header_eventThread */
+/* USER CODE BEGIN Header_vEventTask */
 /**
-* @brief Function implementing the vEventTask thread.
+* @brief Function implementing the EventTask thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_eventThread */
-void eventThread(void *argument)
+/* USER CODE END Header_vEventTask */
+void vEventTask(void *argument)
 {
-  /* USER CODE BEGIN eventThread */
+  /* USER CODE BEGIN vEventTask */
   /* Infinite loop */
   for(;;)
   {
     osDelay(1);
   }
-  /* USER CODE END eventThread */
+  /* USER CODE END vEventTask */
 }
 
-/* USER CODE BEGIN Header_commTxThread */
+/* USER CODE BEGIN Header_vCommTxTask */
 /**
-* @brief Function implementing the vCommTxTask thread.
+* @brief Function implementing the CommTxTask thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_commTxThread */
-void commTxThread(void *argument)
+/* USER CODE END Header_vCommTxTask */
+void vCommTxTask(void *argument)
 {
-  /* USER CODE BEGIN commTxThread */
+  /* USER CODE BEGIN vCommTxTask */
   /* Infinite loop */
   for(;;)
   {
     osDelay(1);
   }
-  /* USER CODE END commTxThread */
+  /* USER CODE END vCommTxTask */
 }
 
-/* USER CODE BEGIN Header_monitorThread */
+/* USER CODE BEGIN Header_vMonitorTask */
 /**
-* @brief Function implementing the vMonitorTask thread.
+* @brief Function implementing the MonitorTask thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_monitorThread */
-void monitorThread(void *argument)
+/* USER CODE END Header_vMonitorTask */
+void vMonitorTask(void *argument)
 {
-  /* USER CODE BEGIN monitorThread */
+  /* USER CODE BEGIN vMonitorTask */
   /* Infinite loop */
   for(;;)
   {
     osDelay(1);
   }
-  /* USER CODE END monitorThread */
+  /* USER CODE END vMonitorTask */
 }
 
 /* USER CODE BEGIN Header_Phase4EchoTask */
@@ -569,6 +580,103 @@ void Phase4EchoTask(void *argument)
 	    osDelay(10);
 	  }
   /* USER CODE END Phase4EchoTask */
+}
+
+/* USER CODE BEGIN Header_vKeepAliveTask */
+/**
+ * @brief Periodically builds and sends a KEEP_ALIVE message with dummy
+ * measurement values, every 6 seconds (Phase 7, PROJECT_PLAN.md §5.1/§6).
+ * Sends directly via Transport_Send — the priority-queue TX architecture
+ * (xKeepAliveTxQueue/vCommTxTask) is deferred to a later phase, once more
+ * than one message source needs to arbitrate for the link.
+ * @param argument Unused (required by the osThreadFunc_t signature).
+ */
+/* USER CODE END Header_vKeepAliveTask */
+void vKeepAliveTask(void *argument)
+{
+  /* USER CODE BEGIN vKeepAliveTask */
+  /* Infinite loop */
+    (void)argument;
+
+    for (;;)
+    {
+        /* Dummy values — real sensors arrive in Phase 10, real RTC in Phase 8 */
+        uint32_t dummyTimestamp   = 0;
+        int16_t  dummyTemperature = 250;  /* 25.0 C, tenths of a degree */
+        uint8_t  dummyHumidity    = 55;   /* % */
+        uint16_t dummyLight       = 300;
+        uint16_t dummyBattery     = 3700; /* mV */
+        uint8_t  dummyMode        = (uint8_t)PROTO_MODE_NORMAL;
+
+        uint8_t valueBuf[4];
+        uint16_t written;
+
+        /* --- MEASUREMENT_RECORD's nested fields --- */
+        uint8_t measurement[40];
+        uint16_t measurementLen = 0;
+
+        Protocol_PutU32(valueBuf, dummyTimestamp);
+        Protocol_EncodeTLV(PROTO_FIELD_TIMESTAMP, valueBuf, 4,
+                            measurement + measurementLen, (uint16_t)(sizeof(measurement) - measurementLen), &written);
+        measurementLen = (uint16_t)(measurementLen + written);
+
+        Protocol_PutU16(valueBuf, (uint16_t)dummyTemperature);
+        Protocol_EncodeTLV(PROTO_FIELD_TEMPERATURE, valueBuf, 2,
+                            measurement + measurementLen, (uint16_t)(sizeof(measurement) - measurementLen), &written);
+        measurementLen = (uint16_t)(measurementLen + written);
+
+        valueBuf[0] = dummyHumidity;
+        Protocol_EncodeTLV(PROTO_FIELD_HUMIDITY, valueBuf, 1,
+                            measurement + measurementLen, (uint16_t)(sizeof(measurement) - measurementLen), &written);
+        measurementLen = (uint16_t)(measurementLen + written);
+
+        Protocol_PutU16(valueBuf, dummyLight);
+        Protocol_EncodeTLV(PROTO_FIELD_LIGHT, valueBuf, 2,
+                            measurement + measurementLen, (uint16_t)(sizeof(measurement) - measurementLen), &written);
+        measurementLen = (uint16_t)(measurementLen + written);
+
+        Protocol_PutU16(valueBuf, dummyBattery);
+        Protocol_EncodeTLV(PROTO_FIELD_BATTERY_VOLTAGE, valueBuf, 2,
+                            measurement + measurementLen, (uint16_t)(sizeof(measurement) - measurementLen), &written);
+        measurementLen = (uint16_t)(measurementLen + written);
+
+        valueBuf[0] = dummyMode;
+        Protocol_EncodeTLV(PROTO_FIELD_MODE, valueBuf, 1,
+                            measurement + measurementLen, (uint16_t)(sizeof(measurement) - measurementLen), &written);
+        measurementLen = (uint16_t)(measurementLen + written);
+
+        /* --- Top-level KEEP_ALIVE value: TIMESTAMP + MEASUREMENT_RECORD + MODE --- */
+        uint8_t payload[64];
+        uint16_t payloadLen = 0;
+
+        Protocol_PutU32(valueBuf, dummyTimestamp);
+        Protocol_EncodeTLV(PROTO_FIELD_TIMESTAMP, valueBuf, 4,
+                            payload + payloadLen, (uint16_t)(sizeof(payload) - payloadLen), &written);
+        payloadLen = (uint16_t)(payloadLen + written);
+
+        Protocol_EncodeTLV(PROTO_FIELD_MEASUREMENT_RECORD, measurement, measurementLen,
+                            payload + payloadLen, (uint16_t)(sizeof(payload) - payloadLen), &written);
+        payloadLen = (uint16_t)(payloadLen + written);
+
+        valueBuf[0] = dummyMode;
+        Protocol_EncodeTLV(PROTO_FIELD_MODE, valueBuf, 1,
+                            payload + payloadLen, (uint16_t)(sizeof(payload) - payloadLen), &written);
+        payloadLen = (uint16_t)(payloadLen + written);
+
+        /* --- Wrap the KEEP_ALIVE message TLV, frame it, send it --- */
+        uint8_t message[80];
+        uint16_t messageLen;
+        Protocol_EncodeTLV(PROTO_TAG_KEEP_ALIVE, payload, payloadLen,
+                            message, sizeof(message), &messageLen);
+
+        uint8_t framed[200];
+        uint16_t framedLen;
+        Frame_Encode(message, messageLen, framed, sizeof(framed), &framedLen);
+        Transport_Send(framed, framedLen);
+
+        osDelay(6000);
+    }
+  /* USER CODE END vKeepAliveTask */
 }
 
 /**
