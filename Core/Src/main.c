@@ -22,7 +22,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "transport_uart.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -92,12 +92,12 @@ const osThreadAttr_t vMonitorTask_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityAboveNormal1,
 };
-/* Definitions for phase1Test */
-osThreadId_t phase1TestHandle;
-const osThreadAttr_t phase1Test_attributes = {
-  .name = "phase1Test",
+/* Definitions for phase2Echo */
+osThreadId_t phase2EchoHandle;
+const osThreadAttr_t phase2Echo_attributes = {
+  .name = "phase2Echo",
   .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityHigh7,
+  .priority = (osPriority_t) osPriorityHigh1,
 };
 /* Definitions for xEventQueue */
 osMessageQueueId_t xEventQueueHandle;
@@ -144,7 +144,7 @@ void CommRxThread(void *argument);
 void eventThread(void *argument);
 void commTxThread(void *argument);
 void monitorThread(void *argument);
-void Phase1TestTask(void *argument);
+void Phase2EchoTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -249,8 +249,8 @@ int main(void)
   /* creation of vMonitorTask */
   vMonitorTaskHandle = osThreadNew(monitorThread, NULL, &vMonitorTask_attributes);
 
-  /* creation of phase1Test */
-  phase1TestHandle = osThreadNew(Phase1TestTask, NULL, &phase1Test_attributes);
+  /* creation of phase2Echo */
+  phase2EchoHandle = osThreadNew(Phase2EchoTask, NULL, &phase2Echo_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -521,32 +521,28 @@ void monitorThread(void *argument)
   /* USER CODE END monitorThread */
 }
 
-/* USER CODE BEGIN Header_Phase1TestTask */
+/* USER CODE BEGIN Header_Phase2EchoTask */
 /**
-* @brief Function implementing the phase1Test thread.
+* @brief Function implementing the phase2Echo thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_Phase1TestTask */
-void Phase1TestTask(void *argument)
+/* USER CODE END Header_Phase2EchoTask */
+void Phase2EchoTask(void *argument)
 {
-	  /* USER CODE BEGIN Phase1TestTask */
-	  Uart_Init();
-
-	  const uint8_t msg[] = "Phase1 TX test\r\n";
+  /* USER CODE BEGIN Phase2EchoTask */
+	Uart_Init();
+	  uint8_t buf[64];
 
 	  for (;;)
 	  {
-	    Uart_Send(msg, sizeof(msg) - 1);   /* -1 drops the trailing null terminator */
-
-	    uint8_t rxByte;
-	    if (Uart_Recv(&rxByte, 1) == 1) {
-	      HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);   /* toggles when a byte arrives */
+	    uint16_t n = Uart_Recv(buf, sizeof(buf));
+	    if (n > 0) {
+	      Uart_Send(buf, n);
 	    }
-
-	    osDelay(1000);
+	    osDelay(10);
 	  }
-  /* USER CODE END Phase1TestTask */
+  /* USER CODE END Phase2EchoTask */
 }
 
 /**
