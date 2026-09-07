@@ -22,7 +22,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "transport_uart.h"
+#include "transport.h"
 #include "protocol.h"
 #include <string.h>
 /* USER CODE END Includes */
@@ -94,10 +94,10 @@ const osThreadAttr_t vMonitorTask_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityAboveNormal1,
 };
-/* Definitions for phase3Echo */
-osThreadId_t phase3EchoHandle;
-const osThreadAttr_t phase3Echo_attributes = {
-  .name = "phase3Echo",
+/* Definitions for phase4Echo */
+osThreadId_t phase4EchoHandle;
+const osThreadAttr_t phase4Echo_attributes = {
+  .name = "phase4Echo",
   .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityHigh1,
 };
@@ -146,7 +146,7 @@ void CommRxThread(void *argument);
 void eventThread(void *argument);
 void commTxThread(void *argument);
 void monitorThread(void *argument);
-void Phase3EchoTask(void *argument);
+void Phase4EchoTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -251,8 +251,8 @@ int main(void)
   /* creation of vMonitorTask */
   vMonitorTaskHandle = osThreadNew(monitorThread, NULL, &vMonitorTask_attributes);
 
-  /* creation of phase3Echo */
-  phase3EchoHandle = osThreadNew(Phase3EchoTask, NULL, &phase3Echo_attributes);
+  /* creation of phase4Echo */
+  phase4EchoHandle = osThreadNew(Phase4EchoTask, NULL, &phase4Echo_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -523,24 +523,24 @@ void monitorThread(void *argument)
   /* USER CODE END monitorThread */
 }
 
-/* USER CODE BEGIN Header_Phase3EchoTask */
+/* USER CODE BEGIN Header_Phase4EchoTask */
 /**
-* @brief Function implementing the phase3Echo thread.
+* @brief Function implementing the phase4Echo thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_Phase3EchoTask */
-void Phase3EchoTask(void *argument)
+/* USER CODE END Header_Phase4EchoTask */
+void Phase4EchoTask(void *argument)
 {
-  /* USER CODE BEGIN Phase3EchoTask */
+  /* USER CODE BEGIN Phase4EchoTask */
   /* Infinite loop */
-	 Uart_Init();
+	 Transport_Init();
 	  uint8_t rxBuf[64];
 	  uint16_t rxLen = 0;
 
 	  for (;;)
 	  {
-	    uint16_t n = Uart_Recv(rxBuf + rxLen, (uint16_t)(sizeof(rxBuf) - rxLen));
+	    uint16_t n = Transport_Recv(rxBuf + rxLen, (uint16_t)(sizeof(rxBuf) - rxLen));
 	    rxLen = (uint16_t)(rxLen + n);
 
 	    if (rxLen > 0) {
@@ -553,7 +553,7 @@ void Phase3EchoTask(void *argument)
 	        uint8_t framed[150];
 	        uint16_t framedLen;
 	        Frame_Encode(payload, payloadLen, framed, sizeof(framed), &framedLen);
-	        Uart_Send(framed, framedLen);
+	        Transport_Send(framed, framedLen);
 
 	        memmove(rxBuf, rxBuf + consumed, (size_t)(rxLen - consumed)); /* slide any leftover bytes to the front */
 	        rxLen = (uint16_t)(rxLen - consumed);
@@ -568,7 +568,7 @@ void Phase3EchoTask(void *argument)
 
 	    osDelay(10);
 	  }
-  /* USER CODE END Phase3EchoTask */
+  /* USER CODE END Phase4EchoTask */
 }
 
 /**
