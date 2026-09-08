@@ -36,6 +36,7 @@ extern "C" {
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
+extern ADC_HandleTypeDef hadc1;
 
 /* USER CODE END ET */
 
@@ -57,8 +58,14 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define LD2_Pin GPIO_PIN_5
-#define LD2_GPIO_Port GPIOA
+#define POTENTIOMETER_Pin GPIO_PIN_0
+#define POTENTIOMETER_GPIO_Port GPIOA
+#define PHOTORESISTOR_Pin GPIO_PIN_1
+#define PHOTORESISTOR_GPIO_Port GPIOA
+#define BUZZER_Pin GPIO_PIN_4
+#define BUZZER_GPIO_Port GPIOB
+#define DHT11_Pin GPIO_PIN_5
+#define DHT11_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
