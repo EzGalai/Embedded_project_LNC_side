@@ -70,7 +70,7 @@ const osThreadAttr_t ObjectDetection_attributes = {
 osThreadId_t CommRxTaskHandle;
 const osThreadAttr_t CommRxTask_attributes = {
   .name = "CommRxTask",
-  .stack_size = 128 * 4,
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityHigh1,
 };
 /* Definitions for EventTask */
@@ -93,13 +93,6 @@ const osThreadAttr_t MonitorTask_attributes = {
   .name = "MonitorTask",
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityAboveNormal1,
-};
-/* Definitions for phase4Echo */
-osThreadId_t phase4EchoHandle;
-const osThreadAttr_t phase4Echo_attributes = {
-  .name = "phase4Echo",
-  .stack_size = 256 * 4,
-  .priority = (osPriority_t) osPriorityHigh1,
 };
 /* Definitions for KeepAliveTask */
 osThreadId_t KeepAliveTaskHandle;
@@ -139,6 +132,8 @@ const osMutexAttr_t xLogMutex_attributes = {
   .name = "xLogMutex"
 };
 /* USER CODE BEGIN PV */
+/* Phase 8: in-RAM stand-in for a real RTC — Get returns it, Set overwrites it */
+static uint32_t g_lncClock = 0;
 
 /* USER CODE END PV */
 
@@ -153,7 +148,6 @@ void vCommRxTask(void *argument);
 void vEventTask(void *argument);
 void vCommTxTask(void *argument);
 void vMonitorTask(void *argument);
-void Phase4EchoTask(void *argument);
 void vKeepAliveTask(void *argument);
 
 /* USER CODE BEGIN PFP */
@@ -258,9 +252,6 @@ int main(void)
 
   /* creation of MonitorTask */
   MonitorTaskHandle = osThreadNew(vMonitorTask, NULL, &MonitorTask_attributes);
-
-  /* creation of phase4Echo */
-  phase4EchoHandle = osThreadNew(Phase4EchoTask, NULL, &phase4Echo_attributes);
 
   /* creation of KeepAliveTask */
   KeepAliveTaskHandle = osThreadNew(vKeepAliveTask, NULL, &KeepAliveTask_attributes);
@@ -405,6 +396,53 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+/**
+ * @brief Handle a GET_TIME_REQ: replies with GET_TIME_RESP carrying the
+ * current value of g_lncClock.
+ */
+static void CommRx_HandleGetTime(void)
+{
+    uint8_t valueBuf[4];
+    Protocol_PutU32(valueBuf, g_lncClock);
+
+    uint8_t message[16];
+    uint16_t messageLen;
+    Protocol_EncodeTLV(PROTO_TAG_GET_TIME_RESP, valueBuf, 4, message, sizeof(message), &messageLen);
+
+    uint8_t framed[40];
+    uint16_t framedLen;
+    Frame_Encode(message, messageLen, framed, sizeof(framed), &framedLen);
+    Transport_Send(framed, framedLen);
+}
+
+/**
+ * @brief Handle a SET_RTC_REQ: overwrites g_lncClock with the request's
+ * TIMESTAMP value, replies with CONFIG_ACK.
+ * @param value Request's Value (a single TIMESTAMP field).
+ * @param valueLen Length of value.
+ */
+static void CommRx_HandleSetRtc(const uint8_t *value, uint16_t valueLen)
+{
+    ProtoStatus_t status = PROTO_STATUS_SUCCESS;
+
+    if (valueLen >= 4) {
+        Protocol_GetU32(value, &g_lncClock);
+    } else {
+        status = PROTO_STATUS_INTERNAL_ERROR; /* malformed request value */
+    }
+
+    uint8_t valueBuf[1];
+    valueBuf[0] = (uint8_t)status;
+
+    uint8_t message[16];
+    uint16_t messageLen;
+    Protocol_EncodeTLV(PROTO_TAG_CONFIG_ACK, valueBuf, 1, message, sizeof(message), &messageLen);
+
+    uint8_t framed[40];
+    uint16_t framedLen;
+    Frame_Encode(message, messageLen, framed, sizeof(framed), &framedLen);
+    Transport_Send(framed, framedLen);
+}
 
 /* USER CODE END 4 */
 
@@ -473,10 +511,48 @@ void vCommRxTask(void *argument)
 {
   /* USER CODE BEGIN vCommRxTask */
   /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+    (void)argument;
+    Transport_Init();
+
+    uint8_t rxBuf[64];
+    uint16_t rxLen = 0;
+
+    for (;;)
+    {
+        uint16_t n = Transport_Recv(rxBuf + rxLen, (uint16_t)(sizeof(rxBuf) - rxLen));
+        rxLen = (uint16_t)(rxLen + n);
+
+        if (rxLen > 0) {
+            uint8_t payload[64];
+            uint16_t payloadLen, consumed;
+            ProtoResult_t r = Frame_Decode(rxBuf, rxLen, payload, sizeof(payload), &payloadLen, &consumed);
+
+            if (r == PROTO_OK) {
+                uint8_t tag;
+                const uint8_t *value;
+                uint16_t valueLen, msgConsumed;
+
+                if (Protocol_DecodeTLV(payload, payloadLen, &tag, &value, &valueLen, &msgConsumed) == PROTO_OK) {
+                    if (tag == PROTO_TAG_GET_TIME_REQ) {
+                        CommRx_HandleGetTime();
+                    } else if (tag == PROTO_TAG_SET_RTC_REQ) {
+                        CommRx_HandleSetRtc(value, valueLen);
+                    }
+                    /* unknown tags: ignored for now */
+                }
+
+                memmove(rxBuf, rxBuf + consumed, (size_t)(rxLen - consumed));
+                rxLen = (uint16_t)(rxLen - consumed);
+            } else if (r == PROTO_ERR_MALFORMED) {
+                memmove(rxBuf, rxBuf + consumed, (size_t)(rxLen - consumed));
+                rxLen = (uint16_t)(rxLen - consumed);
+            } else if (r == PROTO_ERR_BUFFER_TOO_SMALL) {
+                rxLen = 0;
+            }
+        }
+
+        osDelay(10);
+    }
   /* USER CODE END vCommRxTask */
 }
 
@@ -532,54 +608,6 @@ void vMonitorTask(void *argument)
     osDelay(1);
   }
   /* USER CODE END vMonitorTask */
-}
-
-/* USER CODE BEGIN Header_Phase4EchoTask */
-/**
-* @brief Function implementing the phase4Echo thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_Phase4EchoTask */
-void Phase4EchoTask(void *argument)
-{
-  /* USER CODE BEGIN Phase4EchoTask */
-  /* Infinite loop */
-	 Transport_Init();
-	  uint8_t rxBuf[64];
-	  uint16_t rxLen = 0;
-
-	  for (;;)
-	  {
-	    uint16_t n = Transport_Recv(rxBuf + rxLen, (uint16_t)(sizeof(rxBuf) - rxLen));
-	    rxLen = (uint16_t)(rxLen + n);
-
-	    if (rxLen > 0) {
-	      uint8_t payload[64];
-	      uint16_t payloadLen;
-	      uint16_t consumed;
-	      ProtoResult_t r = Frame_Decode(rxBuf, rxLen, payload, sizeof(payload), &payloadLen, &consumed);
-
-	      if (r == PROTO_OK) {
-	        uint8_t framed[150];
-	        uint16_t framedLen;
-	        Frame_Encode(payload, payloadLen, framed, sizeof(framed), &framedLen);
-	        Transport_Send(framed, framedLen);
-
-	        memmove(rxBuf, rxBuf + consumed, (size_t)(rxLen - consumed)); /* slide any leftover bytes to the front */
-	        rxLen = (uint16_t)(rxLen - consumed);
-	      } else if (r == PROTO_ERR_MALFORMED) {
-	        memmove(rxBuf, rxBuf + consumed, (size_t)(rxLen - consumed)); /* discard the bad frame, resync */
-	        rxLen = (uint16_t)(rxLen - consumed);
-	      } else if (r == PROTO_ERR_BUFFER_TOO_SMALL) {
-	        rxLen = 0; /* shouldn't happen given our buffer sizes; safe fallback if it ever does */
-	      }
-	      /* PROTO_ERR_INCOMPLETE: leave rxBuf as-is, wait for more bytes next loop */
-	    }
-
-	    osDelay(10);
-	  }
-  /* USER CODE END Phase4EchoTask */
 }
 
 /* USER CODE BEGIN Header_vKeepAliveTask */
