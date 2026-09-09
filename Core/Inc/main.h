@@ -31,12 +31,18 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "cmsis_os.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
 extern ADC_HandleTypeDef hadc1;
+extern osMutexId_t xMonitorCacheMutexHandle;
+extern TIM_HandleTypeDef htim6;   /* DHT11's microsecond timer */
+extern uint32_t g_lncClock;       /* currently static in main.c — needs static removed so monitor.c can read it for the TIMESTAMP field */
+extern osMessageQueueId_t xEventQueueHandle;
+extern TIM_HandleTypeDef htim3;
+
 
 /* USER CODE END ET */
 
@@ -50,6 +56,8 @@ extern ADC_HandleTypeDef hadc1;
 
 /* USER CODE END EM */
 
+void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
+
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
 
@@ -62,6 +70,12 @@ void Error_Handler(void);
 #define POTENTIOMETER_GPIO_Port GPIOA
 #define PHOTORESISTOR_Pin GPIO_PIN_1
 #define PHOTORESISTOR_GPIO_Port GPIOA
+#define RGB_RED_Pin GPIO_PIN_1
+#define RGB_RED_GPIO_Port GPIOB
+#define RGB_BLUE_Pin GPIO_PIN_2
+#define RGB_BLUE_GPIO_Port GPIOB
+#define RGB_GREEN_Pin GPIO_PIN_11
+#define RGB_GREEN_GPIO_Port GPIOB
 #define BUZZER_Pin GPIO_PIN_4
 #define BUZZER_GPIO_Port GPIOB
 #define DHT11_Pin GPIO_PIN_5

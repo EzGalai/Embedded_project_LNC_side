@@ -105,57 +105,112 @@ int DHT_CheckResponse(uint16_t gpio_pin, GPIO_TypeDef  *GPIOx, TIM_HandleTypeDef
 
 }
 
+//DHT_Status DHT_ReadData(uint16_t gpio_pin, GPIO_TypeDef *GPIOx,
+//		TIM_HandleTypeDef *htim, DHT_Data *result){
+//	int bit_val;
+//	int status;
+//	uint8_t data[5] = {0};
+//
+//	uint8_t bit_position = 0x80;
+//
+//	start_signal(gpio_pin, GPIOx, htim);
+//
+//	status = DHT_CheckResponse(gpio_pin, GPIOx, htim);
+//	if(status == -1){
+//		return DHT_ERROR_NO_RESPONSE;
+//	}
+//
+//
+//	int i = 0;
+//	while(i < RESPONSE_LENGTH){
+//		int byte_index = i / 8;
+//
+//		status = read_bit(gpio_pin, GPIOx, htim, &bit_val);
+//		if(status == -1) {
+//			return DHT_ERROR_TIMEOUT_DATA;
+//		}
+//
+//
+//		if(bit_val){
+//			data[byte_index] |= bit_position;
+//		}
+//
+//		bit_position >>= 1;
+//
+//		if((i + 1) % 8 == 0){
+//			bit_position = 0x80;
+//		}
+//
+//		i++;
+//
+//	}
+//
+//	uint8_t checksum_calc = (uint8_t)(data[0] + data[1] + data[2] + data[3]);
+//
+//	if (checksum_calc != data[4]) {
+//	    return DHT_ERROR_CHECKSUM;
+//	}
+//	result->humidity = data[0];
+//	result->humidity_decimal = data[1];
+//	result->temperature = data[2];
+//	result->temperature_decimal = data[3];
+//	result->checksum = data[4];
+//
+//	return DHT_OK;
+//
+//}
+
+
 DHT_Status DHT_ReadData(uint16_t gpio_pin, GPIO_TypeDef *GPIOx,
-		TIM_HandleTypeDef *htim, DHT_Data *result){
-	int bit_val;
-	int status;
-	uint8_t data[5] = {0};
+        TIM_HandleTypeDef *htim, DHT_Data *result){
+    int bit_val;
+    int status;
+    uint8_t data[5] = {0};
+    uint8_t bit_position = 0x80;
 
-	uint8_t bit_position = 0x80;
+    start_signal(gpio_pin, GPIOx, htim);
 
-	start_signal(gpio_pin, GPIOx, htim);
+    __disable_irq(); /* protect the timing-critical response + 40-bit read (~5ms) */
 
-	status = DHT_CheckResponse(gpio_pin, GPIOx, htim);
-	if(status == -1){
-		return DHT_ERROR_NO_RESPONSE;
-	}
+    status = DHT_CheckResponse(gpio_pin, GPIOx, htim);
+    if(status == -1){
+        __enable_irq();
+        return DHT_ERROR_NO_RESPONSE;
+    }
 
+    int i = 0;
+    while(i < RESPONSE_LENGTH){
+        int byte_index = i / 8;
 
-	int i = 0;
-	while(i < RESPONSE_LENGTH){
-		int byte_index = i / 8;
+        status = read_bit(gpio_pin, GPIOx, htim, &bit_val);
+        if(status == -1) {
+            __enable_irq();
+            return DHT_ERROR_TIMEOUT_DATA;
+        }
 
-		status = read_bit(gpio_pin, GPIOx, htim, &bit_val);
-		if(status == -1) {
-			return DHT_ERROR_TIMEOUT_DATA;
-		}
+        if(bit_val){
+            data[byte_index] |= bit_position;
+        }
+        bit_position >>= 1;
+        if((i + 1) % 8 == 0){
+            bit_position = 0x80;
+        }
+        i++;
+    }
 
+    __enable_irq();
 
-		if(bit_val){
-			data[byte_index] |= bit_position;
-		}
+    uint8_t checksum_calc = (uint8_t)(data[0] + data[1] + data[2] + data[3]);
+    if (checksum_calc != data[4]) {
+        return DHT_ERROR_CHECKSUM;
+    }
+    result->humidity = data[0];
+    result->humidity_decimal = data[1];
+    result->temperature = data[2];
+    result->temperature_decimal = data[3];
+    result->checksum = data[4];
 
-		bit_position >>= 1;
-
-		if((i + 1) % 8 == 0){
-			bit_position = 0x80;
-		}
-
-		i++;
-
-	}
-
-	uint8_t checksum_calc = (uint8_t)(data[0] + data[1] + data[2] + data[3]);
-
-	if (checksum_calc != data[4]) {
-	    return DHT_ERROR_CHECKSUM;
-	}
-	result->humidity = data[0];
-	result->humidity_decimal = data[1];
-	result->temperature = data[2];
-	result->temperature_decimal = data[3];
-	result->checksum = data[4];
-
-	return DHT_OK;
-
+    return DHT_OK;
 }
+
+

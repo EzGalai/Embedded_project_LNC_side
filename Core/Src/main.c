@@ -24,6 +24,8 @@
 /* USER CODE BEGIN Includes */
 #include "transport.h"
 #include "protocol.h"
+#include "event.h"
+#include <stdbool.h>
 #include <string.h>
 /* USER CODE END Includes */
 
@@ -45,6 +47,7 @@
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
 
+TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim6;
 
 UART_HandleTypeDef huart2;
@@ -81,7 +84,7 @@ const osThreadAttr_t CommRxTask_attributes = {
 osThreadId_t EventTaskHandle;
 const osThreadAttr_t EventTask_attributes = {
   .name = "EventTask",
-  .stack_size = 128 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityAboveNormal5,
 };
 /* Definitions for CommTxTask */
@@ -95,7 +98,7 @@ const osThreadAttr_t CommTxTask_attributes = {
 osThreadId_t MonitorTaskHandle;
 const osThreadAttr_t MonitorTask_attributes = {
   .name = "MonitorTask",
-  .stack_size = 128 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityAboveNormal1,
 };
 /* Definitions for KeepAliveTask */
@@ -142,7 +145,7 @@ const osMutexAttr_t xMonitorCacheMutex_attributes = {
 };
 /* USER CODE BEGIN PV */
 /* Phase 8: in-RAM stand-in for a real RTC — Get returns it, Set overwrites it */
-static uint32_t g_lncClock = 0;
+uint32_t g_lncClock = 0;
 
 /* USER CODE END PV */
 
@@ -152,6 +155,7 @@ static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_TIM6_Init(void);
+static void MX_TIM3_Init(void);
 void vWatchdogTask(void *argument);
 void vInitTask(void *argument);
 void vObjectDetectionTask(void *argument);
@@ -202,8 +206,10 @@ int main(void)
   MX_USART2_UART_Init();
   MX_ADC1_Init();
   MX_TIM6_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
-//  uint8_t loopbackTestPassed = Phase1_UartLoopbackTest();
+  HAL_TIM_Base_Start(&htim6);
+
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -414,6 +420,55 @@ static void MX_ADC1_Init(void)
 }
 
 /**
+  * @brief TIM3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM3_Init(void)
+{
+
+  /* USER CODE BEGIN TIM3_Init 0 */
+
+  /* USER CODE END TIM3_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM3_Init 1 */
+
+  /* USER CODE END TIM3_Init 1 */
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = 79;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.Period = 1499;
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 750;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM3_Init 2 */
+
+  /* USER CODE END TIM3_Init 2 */
+  HAL_TIM_MspPostInit(&htim3);
+
+}
+
+/**
   * @brief TIM6 Initialization Function
   * @param None
   * @retval None
@@ -503,14 +558,24 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, BUZZER_Pin|DHT11_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, RGB_RED_Pin|RGB_BLUE_Pin|RGB_GREEN_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : BUZZER_Pin DHT11_Pin */
-  GPIO_InitStruct.Pin = BUZZER_Pin|DHT11_Pin;
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(DHT11_GPIO_Port, DHT11_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pins : RGB_RED_Pin RGB_BLUE_Pin RGB_GREEN_Pin */
+  GPIO_InitStruct.Pin = RGB_RED_Pin|RGB_BLUE_Pin|RGB_GREEN_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : DHT11_Pin */
+  GPIO_InitStruct.Pin = DHT11_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(DHT11_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
@@ -689,10 +754,21 @@ void vEventTask(void *argument)
 {
   /* USER CODE BEGIN vEventTask */
   /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+    (void)argument;
+
+    for (;;)
+    {
+        uint16_t slotIndex;
+        if (osMessageQueueGet(xEventQueueHandle, &slotIndex, NULL, osWaitForever) == osOK) {
+            EventMessage_t event;
+            Event_GetPooled(slotIndex, &event);
+
+            if (event.source == PROTO_EVENT_SOURCE_MONITOR && event.type == PROTO_EVENT_TYPE_MODE_CHANGE) {
+                Event_HandleModeChange(&event);
+            }
+            /* other sources (Object Detection, Configuration, Init) come in later phases */
+        }
+    }
   /* USER CODE END vEventTask */
 }
 
@@ -724,11 +800,19 @@ void vCommTxTask(void *argument)
 void vMonitorTask(void *argument)
 {
   /* USER CODE BEGIN vMonitorTask */
+    (void)argument;
   /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+
+    for (;;)
+    {
+        bool changed = Monitor_Sample();
+        if (changed) {
+            MonitorData_t data;
+            Monitor_GetLatest(&data);
+            Event_PostModeChange(data.mode, &data);
+        }
+        osDelay(5000);
+    }
   /* USER CODE END vMonitorTask */
 }
 
@@ -746,86 +830,77 @@ void vKeepAliveTask(void *argument)
 {
   /* USER CODE BEGIN vKeepAliveTask */
   /* Infinite loop */
-    (void)argument;
+	(void)argument;
 
-    for (;;)
-    {
-        /* Dummy values — real sensors arrive in Phase 10, real RTC in Phase 8 */
-        uint32_t dummyTimestamp   = 0;
-        int16_t  dummyTemperature = 250;  /* 25.0 C, tenths of a degree */
-        uint8_t  dummyHumidity    = 55;   /* % */
-        uint16_t dummyLight       = 300;
-        uint16_t dummyBattery     = 3700; /* mV */
-        uint8_t  dummyMode        = (uint8_t)PROTO_MODE_NORMAL;
+	for (;;)
+	{
+	    MonitorData_t data;
+	    Monitor_GetLatest(&data);
 
-        uint8_t valueBuf[4];
-        uint16_t written;
+	    uint8_t valueBuf[4];
+	    uint16_t written;
 
-        /* --- MEASUREMENT_RECORD's nested fields --- */
-        uint8_t measurement[40];
-        uint16_t measurementLen = 0;
+	    uint8_t measurement[40];
+	    uint16_t measurementLen = 0;
 
-        Protocol_PutU32(valueBuf, dummyTimestamp);
-        Protocol_EncodeTLV(PROTO_FIELD_TIMESTAMP, valueBuf, 4,
-                            measurement + measurementLen, (uint16_t)(sizeof(measurement) - measurementLen), &written);
-        measurementLen = (uint16_t)(measurementLen + written);
+	    Protocol_PutU32(valueBuf, data.timestamp);
+	    Protocol_EncodeTLV(PROTO_FIELD_TIMESTAMP, valueBuf, 4,
+	                            measurement + measurementLen, (uint16_t)(sizeof(measurement) - measurementLen), &written);
+	    measurementLen = (uint16_t)(measurementLen + written);
 
-        Protocol_PutU16(valueBuf, (uint16_t)dummyTemperature);
-        Protocol_EncodeTLV(PROTO_FIELD_TEMPERATURE, valueBuf, 2,
-                            measurement + measurementLen, (uint16_t)(sizeof(measurement) - measurementLen), &written);
-        measurementLen = (uint16_t)(measurementLen + written);
+	    Protocol_PutU16(valueBuf, (uint16_t)data.temperature);
+	    Protocol_EncodeTLV(PROTO_FIELD_TEMPERATURE, valueBuf, 2,
+	                            measurement + measurementLen, (uint16_t)(sizeof(measurement) - measurementLen), &written);
+	    measurementLen = (uint16_t)(measurementLen + written);
 
-        valueBuf[0] = dummyHumidity;
-        Protocol_EncodeTLV(PROTO_FIELD_HUMIDITY, valueBuf, 1,
-                            measurement + measurementLen, (uint16_t)(sizeof(measurement) - measurementLen), &written);
-        measurementLen = (uint16_t)(measurementLen + written);
+	    valueBuf[0] = data.humidity;
+	    Protocol_EncodeTLV(PROTO_FIELD_HUMIDITY, valueBuf, 1,
+	                            measurement + measurementLen, (uint16_t)(sizeof(measurement) - measurementLen), &written);
+	    measurementLen = (uint16_t)(measurementLen + written);
 
-        Protocol_PutU16(valueBuf, dummyLight);
-        Protocol_EncodeTLV(PROTO_FIELD_LIGHT, valueBuf, 2,
-                            measurement + measurementLen, (uint16_t)(sizeof(measurement) - measurementLen), &written);
-        measurementLen = (uint16_t)(measurementLen + written);
+	    Protocol_PutU16(valueBuf, data.light);
+	    Protocol_EncodeTLV(PROTO_FIELD_LIGHT, valueBuf, 2,
+	                            measurement + measurementLen, (uint16_t)(sizeof(measurement) - measurementLen), &written);
+	    measurementLen = (uint16_t)(measurementLen + written);
 
-        Protocol_PutU16(valueBuf, dummyBattery);
-        Protocol_EncodeTLV(PROTO_FIELD_BATTERY_VOLTAGE, valueBuf, 2,
-                            measurement + measurementLen, (uint16_t)(sizeof(measurement) - measurementLen), &written);
-        measurementLen = (uint16_t)(measurementLen + written);
+	    Protocol_PutU16(valueBuf, data.batteryVoltage);
+	    Protocol_EncodeTLV(PROTO_FIELD_BATTERY_VOLTAGE, valueBuf, 2,
+	                            measurement + measurementLen, (uint16_t)(sizeof(measurement) - measurementLen), &written);
+	    measurementLen = (uint16_t)(measurementLen + written);
 
-        valueBuf[0] = dummyMode;
-        Protocol_EncodeTLV(PROTO_FIELD_MODE, valueBuf, 1,
-                            measurement + measurementLen, (uint16_t)(sizeof(measurement) - measurementLen), &written);
-        measurementLen = (uint16_t)(measurementLen + written);
+	    valueBuf[0] = (uint8_t)data.mode;
+	    Protocol_EncodeTLV(PROTO_FIELD_MODE, valueBuf, 1,
+	                            measurement + measurementLen, (uint16_t)(sizeof(measurement) - measurementLen), &written);
+	    measurementLen = (uint16_t)(measurementLen + written);
 
-        /* --- Top-level KEEP_ALIVE value: TIMESTAMP + MEASUREMENT_RECORD + MODE --- */
-        uint8_t payload[64];
-        uint16_t payloadLen = 0;
+	    uint8_t payload[64];
+	    uint16_t payloadLen = 0;
 
-        Protocol_PutU32(valueBuf, dummyTimestamp);
-        Protocol_EncodeTLV(PROTO_FIELD_TIMESTAMP, valueBuf, 4,
-                            payload + payloadLen, (uint16_t)(sizeof(payload) - payloadLen), &written);
-        payloadLen = (uint16_t)(payloadLen + written);
+	    Protocol_PutU32(valueBuf, data.timestamp);
+	    Protocol_EncodeTLV(PROTO_FIELD_TIMESTAMP, valueBuf, 4,
+	                      payload + payloadLen, (uint16_t)(sizeof(payload) - payloadLen), &written);
+	    payloadLen = (uint16_t)(payloadLen + written);
 
-        Protocol_EncodeTLV(PROTO_FIELD_MEASUREMENT_RECORD, measurement, measurementLen,
-                            payload + payloadLen, (uint16_t)(sizeof(payload) - payloadLen), &written);
-        payloadLen = (uint16_t)(payloadLen + written);
+	   Protocol_EncodeTLV(PROTO_FIELD_MEASUREMENT_RECORD, measurement, measurementLen,
+	                      payload + payloadLen, (uint16_t)(sizeof(payload) - payloadLen), &written);
+	   payloadLen = (uint16_t)(payloadLen + written);
 
-        valueBuf[0] = dummyMode;
-        Protocol_EncodeTLV(PROTO_FIELD_MODE, valueBuf, 1,
-                            payload + payloadLen, (uint16_t)(sizeof(payload) - payloadLen), &written);
-        payloadLen = (uint16_t)(payloadLen + written);
+	   valueBuf[0] = (uint8_t)data.mode;
+	   Protocol_EncodeTLV(PROTO_FIELD_MODE, valueBuf, 1,
+	                      payload + payloadLen, (uint16_t)(sizeof(payload) - payloadLen), &written);
+	   payloadLen = (uint16_t)(payloadLen + written);
 
-        /* --- Wrap the KEEP_ALIVE message TLV, frame it, send it --- */
-        uint8_t message[80];
-        uint16_t messageLen;
-        Protocol_EncodeTLV(PROTO_TAG_KEEP_ALIVE, payload, payloadLen,
-                            message, sizeof(message), &messageLen);
+	   uint8_t message[80];
+	   uint16_t messageLen;
+	   Protocol_EncodeTLV(PROTO_TAG_KEEP_ALIVE, payload, payloadLen, message, sizeof(message), &messageLen);
 
-        uint8_t framed[200];
-        uint16_t framedLen;
-        Frame_Encode(message, messageLen, framed, sizeof(framed), &framedLen);
-        Transport_Send(framed, framedLen);
+	   uint8_t framed[200];
+	   uint16_t framedLen;
+	   Frame_Encode(message, messageLen, framed, sizeof(framed), &framedLen);
+	   Transport_Send(framed, framedLen);
 
-        osDelay(6000);
-    }
+	   osDelay(6000);
+	}
   /* USER CODE END vKeepAliveTask */
 }
 
