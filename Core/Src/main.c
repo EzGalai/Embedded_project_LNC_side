@@ -25,6 +25,7 @@
 #include "transport.h"
 #include "protocol.h"
 #include "event.h"
+#include "object_detection.h"
 #include <stdbool.h>
 #include <string.h>
 /* USER CODE END Includes */
@@ -106,7 +107,7 @@ osThreadId_t KeepAliveTaskHandle;
 const osThreadAttr_t KeepAliveTask_attributes = {
   .name = "KeepAliveTask",
   .stack_size = 256 * 4,
-  .priority = (osPriority_t) osPriorityAboveNormal,
+  .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for xEventQueue */
 osMessageQueueId_t xEventQueueHandle;
@@ -209,6 +210,7 @@ int main(void)
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start(&htim6);
+
 
   /* USER CODE END 2 */
 
@@ -440,7 +442,7 @@ static void MX_TIM3_Init(void)
   htim3.Instance = TIM3;
   htim3.Init.Prescaler = 79;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 1499;
+  htim3.Init.Period = 499;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
@@ -454,7 +456,7 @@ static void MX_TIM3_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 750;
+  sConfigOC.Pulse = 250;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
@@ -570,12 +572,31 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : IRRECEIVER_Pin */
+  GPIO_InitStruct.Pin = IRRECEIVER_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(IRRECEIVER_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : ALARMSTOPBTN_Pin */
+  GPIO_InitStruct.Pin = ALARMSTOPBTN_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(ALARMSTOPBTN_GPIO_Port, &GPIO_InitStruct);
+
   /*Configure GPIO pin : DHT11_Pin */
   GPIO_InitStruct.Pin = DHT11_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(DHT11_GPIO_Port, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI3_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI3_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
@@ -631,6 +652,16 @@ static void CommRx_HandleSetRtc(const uint8_t *value, uint16_t valueLen)
     Transport_Send(framed, framedLen);
 }
 
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+    if (GPIO_Pin == IRRECEIVER_Pin) {
+        ObjectDetection_NotifyActivity();
+    } else if (GPIO_Pin == ALARMSTOPBTN_Pin) {
+        HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
+    }
+}
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_vWatchdogTask */
@@ -679,11 +710,17 @@ void vInitTask(void *argument)
 void vObjectDetectionTask(void *argument)
 {
   /* USER CODE BEGIN vObjectDetectionTask */
+	(void)argument;
   /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+    for (;;)
+    {
+        bool detected;
+        bool changed = ObjectDetection_Poll(&detected);
+        if (changed) {
+            Event_PostObjectDetection(detected);
+        }
+        osDelay(200);
+    }
   /* USER CODE END vObjectDetectionTask */
 }
 
@@ -765,8 +802,11 @@ void vEventTask(void *argument)
 
             if (event.source == PROTO_EVENT_SOURCE_MONITOR && event.type == PROTO_EVENT_TYPE_MODE_CHANGE) {
                 Event_HandleModeChange(&event);
+
+            }else if (event.source == PROTO_EVENT_SOURCE_OBJECT_DETECTION) {
+                Event_HandleObjectDetection(&event);
             }
-            /* other sources (Object Detection, Configuration, Init) come in later phases */
+
         }
     }
   /* USER CODE END vEventTask */

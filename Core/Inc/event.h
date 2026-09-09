@@ -11,6 +11,7 @@
 
 #include "protocol.h"
 #include "monitor.h"
+#include <stdbool.h>
 
 typedef struct {
     ProtoEventSource_t source;
@@ -43,5 +44,22 @@ void Event_GetPooled(uint16_t slotIndex, EventMessage_t *outEvent);
  * @param event The event to handle.
  */
 void Event_HandleModeChange(const EventMessage_t *event);
+
+/**
+ * @brief Posts an Object Detection event: writes it into the next pool
+ * slot and enqueues that slot's index onto xEventQueue. Called by
+ * vObjectDetectionTask when ObjectDetection_Poll() reports a state change.
+ * @param detected true for OBJECT_DETECTED, false for OBJECT_CLEARED.
+ */
+void Event_PostObjectDetection(bool detected);
+
+/**
+ * @brief Drives the RGB LED/buzzer for an Object Detection event (taking
+ * precedence over Monitor's mode while active) and sends an EVENT_REPORT
+ * for it (without a MEASUREMENT_RECORD, since none applies).
+ * @param event The event to handle.
+ */
+void Event_HandleObjectDetection(const EventMessage_t *event);
+
 
 #endif /* INC_EVENT_H_ */
