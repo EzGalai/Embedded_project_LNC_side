@@ -42,7 +42,7 @@ extern TIM_HandleTypeDef htim6;   /* DHT11's microsecond timer */
 extern uint32_t g_lncClock;       /* currently static in main.c — needs static removed so monitor.c can read it for the TIMESTAMP field */
 extern osMessageQueueId_t xEventQueueHandle;
 extern TIM_HandleTypeDef htim3;
-
+extern osMutexId_t xConfigMutexHandle;
 
 /* USER CODE END ET */
 

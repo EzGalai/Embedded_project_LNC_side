@@ -26,6 +26,7 @@
 #include "protocol.h"
 #include "event.h"
 #include "object_detection.h"
+#include "config.h"
 #include <stdbool.h>
 #include <string.h>
 /* USER CODE END Includes */
@@ -652,6 +653,23 @@ static void CommRx_HandleSetRtc(const uint8_t *value, uint16_t valueLen)
     Transport_Send(framed, framedLen);
 }
 
+static void CommRx_HandleSetConfig(uint8_t tag, const uint8_t *value, uint16_t valueLen)
+{
+    ProtoStatus_t status = Config_ApplyUpdate(tag, value, valueLen);
+
+    uint8_t valueBuf[1];
+    valueBuf[0] = (uint8_t)status;
+
+    uint8_t message[16];
+    uint16_t messageLen;
+    Protocol_EncodeTLV(PROTO_TAG_CONFIG_ACK, valueBuf, 1, message, sizeof(message), &messageLen);
+
+    uint8_t framed[40];
+    uint16_t framedLen;
+    Frame_Encode(message, messageLen, framed, sizeof(framed), &framedLen);
+    Transport_Send(framed, framedLen);
+}
+
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
@@ -692,11 +710,14 @@ void vWatchdogTask(void *argument)
 void vInitTask(void *argument)
 {
   /* USER CODE BEGIN vInitTask */
+    (void)argument;
   /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+    Config_LoadFromFlash();
+
+    for(;;)
+    {
+        osDelay(1);
+    }
   /* USER CODE END vInitTask */
 }
 
@@ -759,10 +780,12 @@ void vCommRxTask(void *argument)
                 if (Protocol_DecodeTLV(payload, payloadLen, &tag, &value, &valueLen, &msgConsumed) == PROTO_OK) {
                     if (tag == PROTO_TAG_GET_TIME_REQ) {
                         CommRx_HandleGetTime();
-                    } else if (tag == PROTO_TAG_SET_RTC_REQ) {
+                    }else if (tag == PROTO_TAG_SET_RTC_REQ) {
                         CommRx_HandleSetRtc(value, valueLen);
+                    }else if (tag >= PROTO_TAG_SET_TEMP_NORMAL_RANGE && tag <= PROTO_TAG_SET_BATTERY_WARNING_MIN) {
+                        CommRx_HandleSetConfig(tag, value, valueLen);
                     }
-                    /* unknown tags: ignored for now */
+
                 }
 
                 memmove(rxBuf, rxBuf + consumed, (size_t)(rxLen - consumed));

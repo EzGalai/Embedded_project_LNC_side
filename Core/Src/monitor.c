@@ -7,22 +7,10 @@
 #include "cmsis_os.h"
 #include "dht11.h"
 #include "adc_sensors.h"
+#include "config.h"
 #include <string.h>
 #include<stdio.h>
 
-/* Threshold constants — hardcoded until Phase 12's Configuration/Flash
-   module exists; these mirror what Config_LoadFromFlash's defaults will
-   eventually be. */
-#define TEMP_NORMAL_LOW      180  /* 18.0 C, tenths of a degree */
-#define TEMP_NORMAL_HIGH     280  /* 28.0 C */
-#define TEMP_WARNING_LOW     100  /* 10.0 C */
-#define TEMP_WARNING_HIGH    350  /* 35.0 C */
-#define HUMIDITY_NORMAL_MIN   30  /* % */
-#define HUMIDITY_WARNING_MIN  15  /* % */
-#define LIGHT_NORMAL_MIN     500  /* raw ADC */
-#define LIGHT_WARNING_MIN    200  /* raw ADC */
-#define BATTERY_NORMAL_MIN  2500  /* mV */
-#define BATTERY_WARNING_MIN 2000  /* mV */
 
 static MonitorData_t g_latest = {0};
 
@@ -63,6 +51,9 @@ static ProtoMode_t WorstMode(ProtoMode_t a, ProtoMode_t b)
 
 bool Monitor_Sample(void)
 {
+	ConfigRecord_t config;
+	Config_GetCurrent(&config);
+
     MonitorData_t previous;
     Monitor_GetLatest(&previous);
 
@@ -87,11 +78,12 @@ bool Monitor_Sample(void)
     data.light = ADC_ReadLight();
 
     ProtoMode_t overall = PROTO_MODE_NORMAL;
-    overall = WorstMode(overall, ClassifyRange(data.temperature, TEMP_NORMAL_LOW, TEMP_NORMAL_HIGH,
-                                                TEMP_WARNING_LOW, TEMP_WARNING_HIGH));
-    overall = WorstMode(overall, ClassifyMin(data.humidity, HUMIDITY_NORMAL_MIN, HUMIDITY_WARNING_MIN));
-    overall = WorstMode(overall, ClassifyMin(data.light, LIGHT_NORMAL_MIN, LIGHT_WARNING_MIN));
-    overall = WorstMode(overall, ClassifyMin(data.batteryVoltage, BATTERY_NORMAL_MIN, BATTERY_WARNING_MIN));
+    overall = WorstMode(overall, ClassifyRange(data.temperature, config.tempNormalLow, config.tempNormalHigh,
+                                                config.tempWarningLow, config.tempWarningHigh));
+    overall = WorstMode(overall, ClassifyMin(data.humidity, config.humidityNormalMin, config.humidityWarningMin));
+    overall = WorstMode(overall, ClassifyMin(data.light, config.lightNormalMin, config.lightWarningMin));
+    overall = WorstMode(overall, ClassifyMin(data.batteryVoltage, config.batteryNormalMin, config.batteryWarningMin));
+
     data.mode = overall;
 
     bool modeChanged = (previous.mode != data.mode);
