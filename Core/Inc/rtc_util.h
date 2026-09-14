@@ -28,4 +28,17 @@ void RtcUtil_GetTodayString(char *outBuf);
 uint32_t RtcUtil_GetUnixTime(void);
 
 
+/**
+ * @brief Formats an arbitrary Unix timestamp's calendar date as
+ * "YYYY-MM-DD" — unlike RtcUtil_GetTodayString, this doesn't read the live
+ * RTC at all, just converts the given value. Used by the LNC's data
+ * retrieval handlers to build the filename for any day within a requested
+ * time range, not just today.
+ * @param unixTime Seconds since the Unix epoch.
+ * @param outBuf Destination buffer, must be at least 11 bytes (10 chars + null).
+ */
+void RtcUtil_FormatDate(uint32_t unixTime, char *outBuf);
+
+
+
 #endif

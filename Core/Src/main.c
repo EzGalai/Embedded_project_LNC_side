@@ -30,6 +30,9 @@
 #include "config.h"
 #include "log.h"
 #include "rtc_util.h"
+#include "comm.h"
+#include "retrieval.h"
+
 #include <stdbool.h>
 #include <string.h>
 /* USER CODE END Includes */
@@ -86,7 +89,7 @@ const osThreadAttr_t ObjectDetection_attributes = {
 osThreadId_t CommRxTaskHandle;
 const osThreadAttr_t CommRxTask_attributes = {
   .name = "CommRxTask",
-  .stack_size = 256 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityHigh1,
 };
 /* Definitions for EventTask */
@@ -100,7 +103,7 @@ const osThreadAttr_t EventTask_attributes = {
 osThreadId_t CommTxTaskHandle;
 const osThreadAttr_t CommTxTask_attributes = {
   .name = "CommTxTask",
-  .stack_size = 128 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityAboveNormal,
 };
 /* Definitions for MonitorTask */
@@ -225,6 +228,7 @@ int main(void)
 
   f_mount(&USERFatFS, USERPath, 1);
   Log_Init();
+
 
   /* USER CODE END 2 */
 
@@ -906,6 +910,10 @@ void vCommRxTask(void *argument)
                         CommRx_HandleGetTime();
                     }else if (tag == PROTO_TAG_SET_RTC_REQ) {
                         CommRx_HandleSetRtc(value, valueLen);
+                    }else if (tag == PROTO_TAG_GET_MEASUREMENTS_REQ) {
+                        Retrieval_HandleGetMeasurements(value, valueLen);
+                    }else if (tag == PROTO_TAG_GET_EVENTS_REQ) {
+                        Retrieval_HandleGetEvents(value, valueLen);
                     }else if (tag >= PROTO_TAG_SET_TEMP_NORMAL_RANGE && tag <= PROTO_TAG_SET_BATTERY_WARNING_MIN) {
                         CommRx_HandleSetConfig(tag, value, valueLen);
                     }
@@ -971,11 +979,10 @@ void vEventTask(void *argument)
 void vCommTxTask(void *argument)
 {
   /* USER CODE BEGIN vCommTxTask */
+
+	(void)argument;
   /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+	Comm_RunTxTask();
   /* USER CODE END vCommTxTask */
 }
 
@@ -1089,7 +1096,7 @@ void vKeepAliveTask(void *argument)
 	   uint8_t framed[200];
 	   uint16_t framedLen;
 	   Frame_Encode(message, messageLen, framed, sizeof(framed), &framedLen);
-	   Transport_Send(framed, framedLen);
+	   Comm_SendKeepAlive(framed, framedLen);
 
 	   osDelay(6000);
 	}

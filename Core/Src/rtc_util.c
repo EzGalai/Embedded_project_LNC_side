@@ -53,7 +53,14 @@ uint32_t RtcUtil_GetUnixTime(void)
     return (uint32_t)days * 86400u + secondsOfDay;
 }
 
-
+void RtcUtil_FormatDate(uint32_t unixTime, char *outBuf)
+{
+    int32_t days = (int32_t)(unixTime / 86400u);
+    int year;
+    uint8_t month, day;
+    CivilFromDays(days, &year, &month, &day);
+    sprintf(outBuf, "%04d-%02u-%02u", year, month, day);
+}
 
 void RtcUtil_SetFromUnixTime(uint32_t unixTime)
 {
@@ -83,10 +90,5 @@ void RtcUtil_SetFromUnixTime(uint32_t unixTime)
 
 void RtcUtil_GetTodayString(char *outBuf)
 {
-    RTC_DateTypeDef sDate;
-    RTC_TimeTypeDef sTime; /* must read Time immediately before Date — see note above */
-    HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
-    HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
-
-    sprintf(outBuf, "%04d-%02u-%02u", 2000 + sDate.Year, sDate.Month, sDate.Date);
+	RtcUtil_FormatDate(RtcUtil_GetUnixTime(), outBuf);
 }

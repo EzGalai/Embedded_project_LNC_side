@@ -7,6 +7,8 @@
 #include "cmsis_os.h"
 #include "transport.h"
 #include "rtc_util.h"
+#include "comm.h"
+
 #include <string.h>
 
 #define EVENT_POOL_SIZE 16  /* matches xEventQueue's depth (osMessageQueueNew(16, ...)) */
@@ -103,7 +105,8 @@ static void SendEventReport(const EventMessage_t *event)
     Protocol_EncodeTLV(PROTO_TAG_EVENT_REPORT, payload, payloadLen, message, sizeof(message), &messageLen);
     uint8_t framed[300]; uint16_t framedLen;
     Frame_Encode(message, messageLen, framed, sizeof(framed), &framedLen);
-    Transport_Send(framed, framedLen);
+    Comm_SendEvent(framed, framedLen);
+
 }
 
 
