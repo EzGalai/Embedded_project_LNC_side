@@ -43,6 +43,9 @@ extern uint32_t g_lncClock;       /* currently static in main.c — needs static
 extern osMessageQueueId_t xEventQueueHandle;
 extern TIM_HandleTypeDef htim3;
 extern osMutexId_t xConfigMutexHandle;
+extern SPI_HandleTypeDef hspi1;
+extern RTC_HandleTypeDef hrtc;
+
 
 /* USER CODE END ET */
 
@@ -86,8 +89,11 @@ void Error_Handler(void);
 #define BUZZER_GPIO_Port GPIOB
 #define DHT11_Pin GPIO_PIN_5
 #define DHT11_GPIO_Port GPIOB
+#define SD_CS_Pin GPIO_PIN_6
+#define SD_CS_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
+#define SD_SPI_HANDLE hspi1
 
 /* USER CODE END Private defines */
 
