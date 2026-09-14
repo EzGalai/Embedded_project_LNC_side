@@ -6,6 +6,7 @@
 #include "main.h"      /* xEventQueueHandle, RGB_*_Pin, Buzzer_Pin */
 #include "cmsis_os.h"
 #include "transport.h"
+#include "rtc_util.h"
 #include <string.h>
 
 #define EVENT_POOL_SIZE 16  /* matches xEventQueue's depth (osMessageQueueNew(16, ...)) */
@@ -143,7 +144,7 @@ void Event_PostObjectDetection(bool detected)
     g_eventPool[slot].type = detected ? PROTO_EVENT_TYPE_OBJECT_DETECTED : PROTO_EVENT_TYPE_OBJECT_CLEARED;
     g_eventPool[slot].mode = PROTO_MODE_NORMAL;
     memset(&g_eventPool[slot].measurement, 0, sizeof(MonitorData_t));
-    g_eventPool[slot].measurement.timestamp = g_lncClock;  /* ← add this line here */
+    g_eventPool[slot].measurement.timestamp = RtcUtil_GetUnixTime();
 
     osMessageQueuePut(xEventQueueHandle, &slot, 0, 0);
 }

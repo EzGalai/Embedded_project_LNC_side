@@ -8,6 +8,7 @@
 #include "dht11.h"
 #include "adc_sensors.h"
 #include "config.h"
+#include "rtc_util.h"
 #include <string.h>
 #include<stdio.h>
 
@@ -62,7 +63,7 @@ bool Monitor_Sample(void)
 
 
     MonitorData_t data = {0};
-    data.timestamp = g_lncClock;
+    data.timestamp = RtcUtil_GetUnixTime();;
 
     if (dhtStatus == DHT_OK) {
         data.temperature = (int16_t)(dhtResult.temperature * 10);

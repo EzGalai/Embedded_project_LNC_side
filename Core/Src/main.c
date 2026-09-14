@@ -28,9 +28,10 @@
 #include "event.h"
 #include "object_detection.h"
 #include "config.h"
+#include "log.h"
+#include "rtc_util.h"
 #include <stdbool.h>
 #include <string.h>
-#include "rtc_util.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -152,8 +153,7 @@ const osMutexAttr_t xMonitorCacheMutex_attributes = {
   .name = "xMonitorCacheMutex"
 };
 /* USER CODE BEGIN PV */
-/* Phase 8: in-RAM stand-in for a real RTC — Get returns it, Set overwrites it */
-uint32_t g_lncClock = 0;
+
 
 /* USER CODE END PV */
 
@@ -181,9 +181,7 @@ void vKeepAliveTask(void *argument);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-static void BusyDelay(volatile uint32_t count) {
-     while (count--) { __NOP(); }
- }
+
 /* USER CODE END 0 */
 
 /**
@@ -225,37 +223,8 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start(&htim6);
 
-//  if (HAL_GPIO_ReadPin(SD_CS_GPIO_Port, SD_CS_Pin) == GPIO_PIN_SET) {
-//      HAL_GPIO_WritePin(RGB_GREEN_GPIO_Port, RGB_GREEN_Pin, GPIO_PIN_SET); /* CS is High: correct */
-//  } else {
-//      HAL_GPIO_WritePin(RGB_RED_GPIO_Port, RGB_RED_Pin, GPIO_PIN_SET); /* CS is Low: still wrong */
-//  }
-//  while (1) {} /* halt here so the LED state is visible */
-
-
-
-
-  FRESULT fresult = f_mount(&USERFatFS, USERPath, 1);
-  if (fresult == FR_OK) {
-      HAL_GPIO_WritePin(RGB_GREEN_GPIO_Port, RGB_GREEN_Pin, GPIO_PIN_SET);
-
-  } else {
-      int code = (int)fresult;
-      while (1) {
-          for (int i = 0; i < code; i++) {
-              HAL_GPIO_WritePin(RGB_RED_GPIO_Port, RGB_RED_Pin, GPIO_PIN_SET);
-              BusyDelay(2000000);
-              HAL_GPIO_WritePin(RGB_RED_GPIO_Port, RGB_RED_Pin, GPIO_PIN_RESET);
-              BusyDelay(2000000);
-          }
-          BusyDelay(8000000);
-      }
-  }
-
-
-
-
-
+  f_mount(&USERFatFS, USERPath, 1);
+  Log_Init();
 
   /* USER CODE END 2 */
 
@@ -764,7 +733,7 @@ static void MX_GPIO_Init(void)
 static void CommRx_HandleGetTime(void)
 {
     uint8_t valueBuf[4];
-    Protocol_PutU32(valueBuf, g_lncClock);
+    Protocol_PutU32(valueBuf, RtcUtil_GetUnixTime());
 
     uint8_t message[16];
     uint16_t messageLen;
@@ -787,8 +756,9 @@ static void CommRx_HandleSetRtc(const uint8_t *value, uint16_t valueLen)
     ProtoStatus_t status = PROTO_STATUS_SUCCESS;
 
     if (valueLen >= 4) {
-        Protocol_GetU32(value, &g_lncClock);
-        RtcUtil_SetFromUnixTime(g_lncClock); /* keep the real RTC calendar in sync too */
+        uint32_t unixTime;
+        Protocol_GetU32(value, &unixTime);
+        RtcUtil_SetFromUnixTime(unixTime);
 
     } else {
         status = PROTO_STATUS_INTERNAL_ERROR; /* malformed request value */
@@ -967,8 +937,9 @@ void vCommRxTask(void *argument)
 void vEventTask(void *argument)
 {
   /* USER CODE BEGIN vEventTask */
-  /* Infinite loop */
     (void)argument;
+
+    /* Infinite loop */
 
     for (;;)
     {
@@ -976,6 +947,7 @@ void vEventTask(void *argument)
         if (osMessageQueueGet(xEventQueueHandle, &slotIndex, NULL, osWaitForever) == osOK) {
             EventMessage_t event;
             Event_GetPooled(slotIndex, &event);
+            Log_WriteEvent(&event);
 
             if (event.source == PROTO_EVENT_SOURCE_MONITOR && event.type == PROTO_EVENT_TYPE_MODE_CHANGE) {
                 Event_HandleModeChange(&event);
@@ -1023,9 +995,12 @@ void vMonitorTask(void *argument)
     for (;;)
     {
         bool changed = Monitor_Sample();
+
+        MonitorData_t data;
+        Monitor_GetLatest(&data);
+        Log_WriteMeasurement(&data);
+
         if (changed) {
-            MonitorData_t data;
-            Monitor_GetLatest(&data);
             Event_PostModeChange(data.mode, &data);
         }
         osDelay(5000);

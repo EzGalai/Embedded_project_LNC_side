@@ -25,6 +25,36 @@ static void CivilFromDays(int32_t z, int *year, uint8_t *month, uint8_t *day)
     *day = (uint8_t)d;
 }
 
+/**
+ * @brief Converts a proleptic-Gregorian (year, month, day) into
+ * days-since-1970-01-01. Howard Hinnant's public-domain days_from_civil
+ * algorithm — the exact inverse of CivilFromDays above.
+ */
+static int32_t DaysFromCivil(int year, uint8_t month, uint8_t day)
+{
+    int32_t y = year - (month <= 2 ? 1 : 0);
+    int32_t era = (y >= 0 ? y : y - 399) / 400;
+    uint32_t yoe = (uint32_t)(y - era * 400);                                          /* [0, 399] */
+    uint32_t doy = (153u * (uint32_t)((int)month + (month > 2 ? -3 : 9)) + 2u) / 5u + day - 1u; /* [0, 365] */
+    uint32_t doe = yoe * 365u + yoe / 4u - yoe / 100u + doy;                            /* [0, 146096] */
+    return era * 146097 + (int32_t)doe - 719468;
+}
+
+uint32_t RtcUtil_GetUnixTime(void)
+{
+    RTC_TimeTypeDef sTime;
+    RTC_DateTypeDef sDate; /* must read Time immediately before Date — see note above */
+    HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
+    HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
+
+    int32_t days = DaysFromCivil(2000 + sDate.Year, sDate.Month, sDate.Date);
+    uint32_t secondsOfDay = (uint32_t)sTime.Hours * 3600u + (uint32_t)sTime.Minutes * 60u + sTime.Seconds;
+
+    return (uint32_t)days * 86400u + secondsOfDay;
+}
+
+
+
 void RtcUtil_SetFromUnixTime(uint32_t unixTime)
 {
     int32_t days = (int32_t)(unixTime / 86400u);
