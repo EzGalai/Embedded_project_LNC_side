@@ -18,6 +18,7 @@ typedef struct {
     ProtoEventType_t type;
     ProtoMode_t mode;
     MonitorData_t measurement;
+    bool wdResetFlag; /* valid only for a STARTUP event (source == INIT) */
 } EventMessage_t;
 
 /**
@@ -60,6 +61,22 @@ void Event_PostObjectDetection(bool detected);
  * @param event The event to handle.
  */
 void Event_HandleObjectDetection(const EventMessage_t *event);
+
+/**
+ * @brief Posts a startup event: writes it into the next pool slot and
+ * enqueues that slot's index onto xEventQueue. Called once by vInitTask
+ * at boot, reporting whether the last reset was watchdog-triggered.
+ * @param wasWatchdogReset true if RCC_FLAG_IWDGRST was set at boot.
+ */
+void Event_PostStartup(bool wasWatchdogReset);
+
+/**
+ * @brief Sends an EVENT_REPORT for a startup event (carrying
+ * WD_RESET_FLAG instead of a MEASUREMENT_RECORD). No LED/alarm change —
+ * startup doesn't affect the ongoing environmental mode display.
+ * @param event The event to handle.
+ */
+void Event_HandleStartup(const EventMessage_t *event);
 
 
 #endif /* INC_EVENT_H_ */

@@ -55,6 +55,8 @@
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
 
+IWDG_HandleTypeDef hiwdg;
+
 RTC_HandleTypeDef hrtc;
 
 SPI_HandleTypeDef hspi1;
@@ -156,6 +158,7 @@ const osMutexAttr_t xMonitorCacheMutex_attributes = {
   .name = "xMonitorCacheMutex"
 };
 /* USER CODE BEGIN PV */
+bool g_wasWatchdogReset = false;
 
 
 /* USER CODE END PV */
@@ -169,6 +172,7 @@ static void MX_TIM6_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_RTC_Init(void);
+static void MX_IWDG_Init(void);
 void vWatchdogTask(void *argument);
 void vInitTask(void *argument);
 void vObjectDetectionTask(void *argument);
@@ -223,7 +227,11 @@ int main(void)
   MX_SPI1_Init();
   MX_FATFS_Init();
   MX_RTC_Init();
+  MX_IWDG_Init();
   /* USER CODE BEGIN 2 */
+  g_wasWatchdogReset = (__HAL_RCC_GET_FLAG(RCC_FLAG_IWDGRST) != RESET);
+  __HAL_RCC_CLEAR_RESET_FLAGS();
+
   HAL_TIM_Base_Start(&htim6);
 
   f_mount(&USERFatFS, USERPath, 1);
@@ -437,6 +445,35 @@ static void MX_ADC1_Init(void)
   /* USER CODE BEGIN ADC1_Init 2 */
 
   /* USER CODE END ADC1_Init 2 */
+
+}
+
+/**
+  * @brief IWDG Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_IWDG_Init(void)
+{
+
+  /* USER CODE BEGIN IWDG_Init 0 */
+
+  /* USER CODE END IWDG_Init 0 */
+
+  /* USER CODE BEGIN IWDG_Init 1 */
+
+  /* USER CODE END IWDG_Init 1 */
+  hiwdg.Instance = IWDG;
+  hiwdg.Init.Prescaler = IWDG_PRESCALER_64;
+  hiwdg.Init.Window = 4095;
+  hiwdg.Init.Reload = 1999;
+  if (HAL_IWDG_Init(&hiwdg) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN IWDG_Init 2 */
+
+  /* USER CODE END IWDG_Init 2 */
 
 }
 
@@ -820,11 +857,13 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 void vWatchdogTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
+	(void)argument;
   /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+	  for (;;)
+	  {
+	    HAL_IWDG_Refresh(&hiwdg);
+	    osDelay(500);
+	  }
   /* USER CODE END 5 */
 }
 
@@ -841,6 +880,9 @@ void vInitTask(void *argument)
     (void)argument;
   /* Infinite loop */
     Config_LoadFromFlash();
+
+    Event_PostStartup(g_wasWatchdogReset);
+
 
     for(;;)
     {
@@ -962,6 +1004,8 @@ void vEventTask(void *argument)
 
             }else if (event.source == PROTO_EVENT_SOURCE_OBJECT_DETECTION) {
                 Event_HandleObjectDetection(&event);
+            }else if (event.source == PROTO_EVENT_SOURCE_INIT) {
+                Event_HandleStartup(&event);
             }
 
         }
@@ -1001,6 +1045,8 @@ void vMonitorTask(void *argument)
 
     for (;;)
     {
+
+
         bool changed = Monitor_Sample();
 
         MonitorData_t data;

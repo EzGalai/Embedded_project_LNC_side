@@ -99,6 +99,11 @@ static void SendEventReport(const EventMessage_t *event)
 
         Protocol_EncodeTLV(PROTO_FIELD_MEASUREMENT_RECORD, measurement, measurementLen, payload + payloadLen, (uint16_t)(sizeof(payload) - payloadLen), &written);
         payloadLen = (uint16_t)(payloadLen + written);
+
+    }else if (event->type == PROTO_EVENT_TYPE_STARTUP) {
+        valueBuf[0] = (uint8_t)event->wdResetFlag;
+        Protocol_EncodeTLV(PROTO_FIELD_WD_RESET_FLAG, valueBuf, 1, payload + payloadLen, (uint16_t)(sizeof(payload) - payloadLen), &written);
+        payloadLen = (uint16_t)(payloadLen + written);
     }
 
     uint8_t message[120]; uint16_t messageLen;
@@ -160,4 +165,25 @@ void Event_HandleObjectDetection(const EventMessage_t *event)
     RefreshLedAndAlarm();
     SendEventReport(event);
 }
+
+void Event_PostStartup(bool wasWatchdogReset)
+{
+    uint16_t slot = g_eventPoolNext;
+    g_eventPoolNext = (uint16_t)((g_eventPoolNext + 1) % EVENT_POOL_SIZE);
+
+    g_eventPool[slot].source = PROTO_EVENT_SOURCE_INIT;
+    g_eventPool[slot].type = PROTO_EVENT_TYPE_STARTUP;
+    g_eventPool[slot].mode = PROTO_MODE_NORMAL;
+    memset(&g_eventPool[slot].measurement, 0, sizeof(MonitorData_t));
+    g_eventPool[slot].measurement.timestamp = RtcUtil_GetUnixTime();
+    g_eventPool[slot].wdResetFlag = wasWatchdogReset;
+
+    osMessageQueuePut(xEventQueueHandle, &slot, 0, 0);
+}
+
+void Event_HandleStartup(const EventMessage_t *event)
+{
+    SendEventReport(event);
+}
+
 
