@@ -579,7 +579,7 @@ static void MX_TIM3_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 250;
+  sConfigOC.Pulse = 25;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
@@ -746,7 +746,7 @@ static void CommRx_HandleGetTime(void)
     uint8_t framed[40];
     uint16_t framedLen;
     Frame_Encode(message, messageLen, framed, sizeof(framed), &framedLen);
-    Transport_Send(framed, framedLen);
+    Comm_SendEvent(framed, framedLen);
 }
 
 /**
@@ -778,7 +778,7 @@ static void CommRx_HandleSetRtc(const uint8_t *value, uint16_t valueLen)
     uint8_t framed[40];
     uint16_t framedLen;
     Frame_Encode(message, messageLen, framed, sizeof(framed), &framedLen);
-    Transport_Send(framed, framedLen);
+    Comm_SendEvent(framed, framedLen);
 }
 
 static void CommRx_HandleSetConfig(uint8_t tag, const uint8_t *value, uint16_t valueLen)
@@ -795,7 +795,7 @@ static void CommRx_HandleSetConfig(uint8_t tag, const uint8_t *value, uint16_t v
     uint8_t framed[40];
     uint16_t framedLen;
     Frame_Encode(message, messageLen, framed, sizeof(framed), &framedLen);
-    Transport_Send(framed, framedLen);
+    Comm_SendEvent(framed, framedLen);
 }
 
 
